@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { FONT_STYLES, CONNECTOR_STYLES, applyStyle } from "@/lib/textStyle";
 
 const CHANNEL_TYPE_LABEL = {
   text: "#",
@@ -11,13 +12,20 @@ const CHANNEL_TYPE_LABEL = {
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
-  const [config, setConfig] = useState(null);
+  const [config, setConfig] = useState(null); // config mentah dari AI, gak berubah
+  const [fontStyleId, setFontStyleId] = useState("normal");
+  const [connectorStyleId, setConnectorStyleId] = useState("none");
   const [token, setToken] = useState(null);
   const [expiresInMinutes, setExpiresInMinutes] = useState(null);
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+
+  const styledConfig = useMemo(
+    () => applyStyle(config, fontStyleId, connectorStyleId),
+    [config, fontStyleId, connectorStyleId]
+  );
 
   async function handleGenerate() {
     setError("");
@@ -50,7 +58,7 @@ export default function Home() {
       const res = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config }),
+        body: JSON.stringify({ config: styledConfig }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -110,22 +118,60 @@ export default function Home() {
         <div className="panel">
           <span className="corner tl" />
           <span className="corner br" />
+          <p className="section-title">gaya tampilan</p>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ marginBottom: 6 }}>Font</label>
+            <div className="btn-row" style={{ marginTop: 0 }}>
+              {FONT_STYLES.map((f) => (
+                <button
+                  key={f.id}
+                  className={fontStyleId === f.id ? "primary" : "ghost"}
+                  onClick={() => setFontStyleId(f.id)}
+                  type="button"
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={{ marginBottom: 6 }}>Pemisah emoji channel</label>
+            <div className="btn-row" style={{ marginTop: 0 }}>
+              {CONNECTOR_STYLES.map((c) => (
+                <button
+                  key={c.id}
+                  className={connectorStyleId === c.id ? "primary" : "ghost"}
+                  onClick={() => setConnectorStyleId(c.id)}
+                  type="button"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {config && (
+        <div className="panel">
+          <span className="corner tl" />
+          <span className="corner br" />
           <p className="section-title">roles</p>
           <div style={{ marginBottom: 24 }}>
-            {(config.roles || []).map((role, i) => (
+            {(styledConfig.roles || []).map((role, i) => (
               <span className="role-chip" key={i}>
                 <span className="role-dot" style={{ background: role.color || "#6fd3f5" }} />
                 {role.name}
               </span>
             ))}
-            {(!config.roles || config.roles.length === 0) && (
+            {(!styledConfig.roles || styledConfig.roles.length === 0) && (
               <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Tidak ada role diusulkan.</span>
             )}
           </div>
 
           <p className="section-title">categories &amp; channels</p>
           <ul className="tree">
-            {(config.categories || []).map((cat, i) => (
+            {(styledConfig.categories || []).map((cat, i) => (
               <li key={i}>
                 <div className="cat-name">{cat.name}</div>
                 <ul className="chan-list">
