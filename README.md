@@ -19,6 +19,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
+## Setup Env
+
+```
+# Gemini API key - ambil di https://aistudio.google.com/apikey
+GEMINI_API_KEY=
+
+# Upstash Redis - buat database gratis di https://upstash.com (pilih Redis)
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+
+# Secret bersama antara web ini dan bot Discord.
+# Isi bebas (string acak panjang), harus SAMA PERSIS di env bot nanti.
+AUTOSETUP_BOT_SECRET=
+```
+
 Buka http://localhost:3000
 
 ### Dapetin API keys
