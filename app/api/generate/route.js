@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { SYSTEM_PROMPT, validateConfig } from "@/lib/prompt";
+import { buildSystemPrompt, validateConfig } from "@/lib/prompt";
 
 export async function POST(req) {
   let body;
@@ -10,6 +10,7 @@ export async function POST(req) {
   }
 
   const prompt = (body?.prompt || "").trim();
+  const mode = body?.mode === "full" ? "full" : "basic";
   if (!prompt) {
     return Response.json({ error: "Deskripsi server tidak boleh kosong" }, { status: 400 });
   }
@@ -25,7 +26,7 @@ export async function POST(req) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: "gemini-3.6-flash",
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: buildSystemPrompt(mode),
       generationConfig: {
         responseMimeType: "application/json",
       },

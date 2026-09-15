@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { FONT_STYLES, CONNECTOR_STYLES, applyStyle } from "@/lib/textStyle";
+import { recommendBots } from "@/lib/botRecommendations";
 
 const CHANNEL_TYPE_LABEL = {
   text: "#",
@@ -10,8 +11,14 @@ const CHANNEL_TYPE_LABEL = {
   forum: "◆",
 };
 
+const SETUP_MODES = [
+  { id: "basic", label: "Basic", desc: "Channel + role + permission role aja." },
+  { id: "full", label: "Full", desc: "+ permission per-channel, slowmode, channel privat otomatis." },
+];
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState("basic");
   const [config, setConfig] = useState(null); // config mentah dari AI, gak berubah
   const [fontStyleId, setFontStyleId] = useState("normal");
   const [connectorStyleId, setConnectorStyleId] = useState("none");
@@ -27,6 +34,8 @@ export default function Home() {
     [config, fontStyleId, connectorStyleId]
   );
 
+  const recommendedBots = useMemo(() => (config ? recommendBots(prompt) : []), [config, prompt]);
+
   async function handleGenerate() {
     setError("");
     setToken(null);
@@ -35,7 +44,7 @@ export default function Home() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, mode }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -93,6 +102,23 @@ export default function Home() {
       <div className="panel">
         <span className="corner tl" />
         <span className="corner br" />
+        <label>Mode setup</label>
+        <div className="btn-row" style={{ marginTop: 0, marginBottom: 16 }}>
+          {SETUP_MODES.map((m) => (
+            <button
+              key={m.id}
+              className={mode === m.id ? "primary" : "ghost"}
+              onClick={() => setMode(m.id)}
+              type="button"
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="hint" style={{ marginTop: -8, marginBottom: 18 }}>
+          {SETUP_MODES.find((m) => m.id === mode)?.desc}
+        </p>
+
         <label htmlFor="prompt">Deskripsi server</label>
         <textarea
           id="prompt"
@@ -193,6 +219,37 @@ export default function Home() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {config && recommendedBots.length > 0 && (
+        <div className="panel">
+          <span className="corner tl" />
+          <span className="corner br" />
+          <p className="section-title">rekomendasi bot buat server ini</p>
+          {recommendedBots.map((bot) => (
+            <div key={bot.name} style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                <strong style={{ fontSize: 14 }}>{bot.name}</strong>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--cyan-dim)" }}>
+                  {bot.category}
+                </span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 6px" }}>{bot.reason}</p>
+              <a
+                href={bot.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--cyan)" }}
+              >
+                Cari di top.gg →
+              </a>
+            </div>
+          ))}
+          <p className="hint">
+            Rekomendasi berdasarkan deskripsi server kamu, bukan endorsement — cek dulu review & permission
+            yang diminta sebelum invite bot manapun ke server.
+          </p>
         </div>
       )}
 

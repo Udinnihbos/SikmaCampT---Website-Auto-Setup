@@ -1,51 +1,69 @@
-# Autosetup Bot
+# Autosetup Web
 
-Bot Discord (discord.js v14, ES Modules) buat eksekusi blueprint yang digenerate dari website autosetup. Command `/autosetup <token>` ambil rancangan server (roles/categories/channels) dari website lewat token sekali-pakai, terus dibangun langsung ke server.
+Website AI generator buat bagian pertama dari project autosetup bot: user deskripsiin server Discord yang diinginkan, Gemini generate rancangan (roles + categories + channels) dalam JSON, user konfirmasi, lalu website ngasih **token** sekali-pakai. Token itu nanti dipakai bot Discord lewat command `/autosetup <token>`.
 
-## Alur singkat
+## Alur
 
 ```
-/autosetup token:<token> [wipe:true/false]
-  → cek permission user (harus Administrator) & bot (Manage Channels + Manage Roles)
-  → fetch config dari GET <AUTOSETUP_WEB_URL>/api/setup/<token>
-  → tampilin ringkasan + tombol Konfirmasi/Batal
-  → kalau confirm & wipe:true → hapus semua channel yang ada
-  → bikin roles → bikin categories → bikin channels di masing-masing category
-  → kirim ringkasan hasil (jumlah dibuat + error kalau ada)
+User → isi deskripsi → POST /api/generate → Gemini balikin JSON struktur
+User → preview blueprint → klik konfirmasi → POST /api/setup → simpan config di Redis (TTL 30 menit) → dapat token
+Bot Discord → /autosetup <token> → GET /api/setup/<token> → ambil config (sekali pakai, langsung dihapus) → bot eksekusi ke server
 ```
 
-## Setup
+## Setup lokal
 
 ```bash
 npm install
-cp .env.example .env
-# isi DISCORD_TOKEN, CLIENT_ID, AUTOSETUP_WEB_URL, AUTOSETUP_BOT_SECRET
-npm run deploy   # daftarin slash command /autosetup
-npm start
+cp .env.example .env.local
+# isi GEMINI_API_KEY, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, AUTOSETUP_BOT_SECRET
+npm run dev
 ```
 
-`AUTOSETUP_BOT_SECRET` **harus sama persis** dengan yang diisi di env website (Vercel), karena endpoint token di website nolak request tanpa header secret yang cocok.
+Buka http://localhost:3000
 
-Saran waktu development: isi `GUILD_ID` di `.env` biar command langsung muncul di 1 server tanpa nunggu propagasi global (~1 jam).
+### Dapetin API keys
 
-## Deploy ke Pterodactyl
+- **Gemini API key**: https://aistudio.google.com/apikey — gratis, tinggal login akun Google.
+- **Upstash Redis**: https://upstash.com — bikin database Redis gratis (dipakai buat nyimpen config sementara pakai token, otomatis expired). Setelah dibuat, copy `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN` dari dashboard.
+- **AUTOSETUP_BOT_SECRET**: bebas isi string acak (misal generate lewat `openssl rand -hex 32`). Ini buat mastiin cuma bot kamu yang bisa nge-fetch config dari endpoint token, bukan sekadar nebak token orang.
 
-Sama kayak bot fishing lo sebelumnya:
-1. Upload semua file (kecuali `node_modules`) ke server Pterodactyl.
-2. Startup command: `npm install && npm run deploy && npm start` (atau pisahin `deploy` jadi one-time command manual, biar gak register ulang tiap restart).
-3. Isi environment variables di panel Pterodactyl sesuai `.env.example`.
+## Deploy ke Vercel
 
-## Permission bot yang dibutuhin
+1. Push folder ini ke repo GitHub.
+2. Import project di https://vercel.com/new.
+3. Di tab **Environment Variables**, masukin 4 variabel yang sama kayak `.env.example`.
+4. Deploy. Vercel otomatis detect Next.js.
 
-Waktu invite bot ke server, minimal centang:
-- Manage Roles
-- Manage Channels
-- Use Application Commands
+Setelah deploy, endpoint yang dipakai bot adalah:
 
-## Kenapa role gak ikut ke-wipe
+```
+GET https://<domain-vercel-kamu>/api/setup/<token>
+Header: x-bot-secret: <AUTOSETUP_BOT_SECRET yang sama>
+```
 
-Opsi `wipe:true` cuma hapus channel, sengaja **tidak** menghapus role — soalnya role bot sendiri, role booster, integrasi, dll ikut ke-drag dan resikonya lebih tinggi daripada manfaatnya. Kalau nanti mau nambahin wipe roles juga, tinggal bikin fungsi baru di `lib/executor.js` yang skip role @everyone dan role yang lebih tinggi dari role bot (gak akan bisa dihapus bot soalnya, tapi baiknya di-skip eksplisit).
+## Struktur JSON yang dihasilkan AI
 
-## Kalau mau custom field JSON
+```json
+{
+  "roles": [
+    { "name": "Moderator", "color": "#5865F2", "hoist": true, "mentionable": true, "permissions": ["ManageChannels", "KickMembers"] }
+  ],
+  "categories": [
+    {
+      "name": "GENERAL",
+      "channels": [
+        { "name": "welcome", "type": "text", "topic": "Selamat datang di server!" },
+        { "name": "Voice Santai", "type": "voice", "topic": "" }
+      ]
+    }
+  ]
+}
+```
 
-Schema config di-generate sama website (lihat `lib/prompt.js` di project web). Kalau nambah field baru (misal permission overwrite per-channel), update juga `lib/executor.js` di sini biar sinkron dua sisi.
+Ini schema yang sama yang bakal dipakai bot Discord nanti buat baca dan eksekusi setup — jadi kalau lo mau custom field tambahan, ubah di `lib/prompt.js` (system prompt + validator) biar konsisten dua sisi.
+
+## Catatan keamanan
+
+- Token cuma valid 30 menit dan otomatis hangus sekali dipakai (dihapus dari Redis setelah bot fetch).
+- Endpoint `/api/setup/<token>` butuh header `x-bot-secret` yang cocok — jadi walau token bocor/ketebak, tanpa secret ini tetap ditolak.
+- Belum ada rate-limiting di `/api/generate` — kalau nanti dipublish luas, tambahin rate limit (misal per-IP) biar kuota Gemini gak jebol.
